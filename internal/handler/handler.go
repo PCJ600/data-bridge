@@ -12,14 +12,14 @@ func EdgeGatewayCommonMsgHandler(_ mqtt.Client, msg mqtt.Message) {
     edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
 
 	payload := msg.Payload()
-    var kafkaTopic string
+    var MQTopic string
     var data struct {
         Type string `json:"msgType"`
     }
     if err := json.Unmarshal(payload, &data); err == nil {
         switch data.Type {
         case "ack":
-            kafkaTopic = "cloud.ack"
+            MQTopic = "cloud.ack"
         default:
 			log.Printf("Unknown MQTT topic: %s, drop msg", msg.Topic())
         }
@@ -29,7 +29,7 @@ func EdgeGatewayCommonMsgHandler(_ mqtt.Client, msg mqtt.Message) {
     }
 
 	// TODO: publish to Kafka
-	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", kafkaTopic, edgeGatewayID)
+	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", MQTopic, edgeGatewayID)
 }
 
 func EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message) {
@@ -58,6 +58,6 @@ func CloudMsgHandler(topic string, key []byte, value []byte) {
 	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
 }
 
-func KafkaSubscribeTestHandler(topic string, key []byte, value []byte) {
+func MQSubscribeTestHandler(topic string, key []byte, value []byte) {
 	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
 }

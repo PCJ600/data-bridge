@@ -1,4 +1,4 @@
-package kafkaclient
+package mqclient
 
 import (
     "log"
@@ -11,8 +11,8 @@ import (
 // MessageHandler defines the function signature for handling consumed messages.
 type MessageHandler func(topic string, key, value []byte)
 
-// KafkaClient encapsulates a Confluent Kafka client.
-type KafkaClient struct {
+// MQClient encapsulates a Confluent Kafka client.
+type MQClient struct {
     pConfig         *kafka.ConfigMap
     cConfig         *kafka.ConfigMap
     producer        *kafka.Producer
@@ -23,9 +23,9 @@ type KafkaClient struct {
     reconnectInterval time.Duration           // Interval for reconnecting
 }
 
-// NewKafkaClient creates a new KafkaClient instance.
-func NewKafkaClient(brokers string, groupId string, topicHandlers map[string]MessageHandler) *KafkaClient {
-    return &KafkaClient{
+// Creates a new KafkaClient instance.
+func NewMQClient(brokers string, groupId string, topicHandlers map[string]MessageHandler) *MQClient {
+    return &MQClient{
         pConfig: &kafka.ConfigMap{
             "bootstrap.servers":          brokers,
             "acks":                       "all",
@@ -47,7 +47,7 @@ func NewKafkaClient(brokers string, groupId string, topicHandlers map[string]Mes
 }
 
 // Init initializes the producer and starts the consume loop.
-func (k *KafkaClient) Init() error {
+func (k *MQClient) Init() error {
     producer, err := kafka.NewProducer(k.pConfig)
     if err != nil {
         return err
@@ -60,7 +60,7 @@ func (k *KafkaClient) Init() error {
 }
 
 // startConsumeLoop runs a loop that automatically reconnects on failure.
-func (k *KafkaClient) startConsumeLoop() {
+func (k *MQClient) startConsumeLoop() {
     for k.isRunning() {
         err := k.connectAndConsume()
         if err != nil {
@@ -73,7 +73,7 @@ func (k *KafkaClient) startConsumeLoop() {
 }
 
 // connectAndConsume creates a new consumer, subscribes to topics, and polls for messages.
-func (k *KafkaClient) connectAndConsume() error {
+func (k *MQClient) connectAndConsume() error {
     consumer, err := kafka.NewConsumer(k.cConfig)
     if err != nil {
         return err
@@ -135,7 +135,7 @@ func (k *KafkaClient) connectAndConsume() error {
 }
 
 // Publish sends a message synchronously.
-func (k *KafkaClient) Publish(topic string, key string, value []byte) error {
+func (k *MQClient) Publish(topic string, key string, value []byte) error {
     k.mu.RLock()
     producer := k.producer
     k.mu.RUnlock()
@@ -171,7 +171,7 @@ func (k *KafkaClient) Publish(topic string, key string, value []byte) error {
 }
 
 // Close shuts down the producer and consumer gracefully.
-func (k *KafkaClient) Close() {
+func (k *MQClient) Close() {
     k.mu.Lock()
     k.running = false
     k.mu.Unlock()
@@ -183,7 +183,7 @@ func (k *KafkaClient) Close() {
 }
 
 // isRunning checks if the client is still running.
-func (k *KafkaClient) isRunning() bool {
+func (k *MQClient) isRunning() bool {
     k.mu.RLock()
     defer k.mu.RUnlock()
     return k.running

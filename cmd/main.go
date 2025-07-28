@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+	// "time"
 
 	"github.com/pc/mqtt-bridge/internal/mqtt"
-	"github.com/pc/mqtt-bridge/internal/kafka"
+	"github.com/pc/mqtt-bridge/internal/mq-adapter"
 	"github.com/pc/mqtt-bridge/internal/handler"
 
 	"github.com/google/uuid"
@@ -32,14 +32,14 @@ func InitMqttClient() (*mqttclient.MqttClient) {
 	return c
 }
 
-func InitKafkaClient() (*kafkaclient.KafkaClient) {
+func InitMQClient() (*mqclient.MQClient) {
 	broker := "kafka:9092"
 	consumerGroup := "mqtt-bridge"
-	topic_handlers := map[string]kafkaclient.MessageHandler{
+	topic_handlers := map[string]mqclient.MessageHandler{
 		"egw.notify": handler.CloudMsgHandler,
-		"test.topic": handler.KafkaSubscribeTestHandler,
+		"test.topic": handler.MQSubscribeTestHandler,
 	}
-	c := kafkaclient.NewKafkaClient(broker, consumerGroup, topic_handlers)
+	c := mqclient.NewMQClient(broker, consumerGroup, topic_handlers)
 	c.Init()
 	return c
 }
@@ -47,8 +47,8 @@ func InitKafkaClient() (*kafkaclient.KafkaClient) {
 
 func main() {
 	mqttc := InitMqttClient()
-	kafkac := InitKafkaClient()
-	log.Printf("mqttclient: %v, kafkac: %v", mqttc, kafkac)
+	mqClient := InitMQClient()
+	log.Printf("mqttc: %x, kafkac: %x", mqttc, mqClient)
 
 	// MQTT publish
 	/*
@@ -59,15 +59,15 @@ func main() {
 		}
 		time.Sleep(3 * time.Second)
 	}
-	*/
 
 	for {
-		err := kafkac.Publish("egw.notify", "device-001", []byte(`{"msgType":"upgrade"}`))
+		err := mqClient.Publish("egw.notify", "device-001", []byte(`{"msgType":"upgrade"}`))
 		if err != nil {
 			log.Printf("Publish error: %v", err)
 		}
 		time.Sleep(3 * time.Second)
 	}
+	*/
 
 
 	sig := make(chan os.Signal, 1)
