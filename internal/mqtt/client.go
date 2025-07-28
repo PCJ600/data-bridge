@@ -52,7 +52,6 @@ func (c *MqttClient) Init(broker string, topicHandlers map[string]mqtt.MessageHa
 
 func (c *MqttClient) onConnect(client mqtt.Client) {
 	log.Printf("Create MQTT connection done")
-	// TODO: async subscribe
 	c.ResubscribeAllTopics()
 }
 
@@ -93,8 +92,7 @@ func (c *MqttClient) IsConnected() bool {
 }
 
 
-// TODO: timeout 
-// TODO: handle subscribe error ?
+// TODO: handle subscribe error
 func (c *MqttClient) ResubscribeAllTopics() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

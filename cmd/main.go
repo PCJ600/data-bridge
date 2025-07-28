@@ -15,8 +15,9 @@ import (
 func InitMqttClient() (*mqttclient.MqttClient){
 	c := mqttclient.New()
 	topic_handlers := map[string]mqtt.MessageHandler{
+		"$share/mqtt_bridge/cloud/+/telemetry": handler.EdgeGatewayTelemetryHandler,
 		"$share/mqtt_bridge/cloud/+/notify": handler.EdgeGatewayHandler,
-		"$share/mqtt_bridge/cloud/group/+/ack": handler.EdgeGatewayRespHandler,
+		"$share/mqtt_bridge/cloud/+/ack": handler.EdgeGatewayRespHandler,
 	}
 	c.Init("tcp://emqx:1883", topic_handlers)
 	return c
