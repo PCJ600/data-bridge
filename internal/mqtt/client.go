@@ -6,13 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-// TODO: set autoconnectretry 5 seconds, no need to Reconnect ?
 type MqttClient struct {
 	broker         string
+	clientID       string
 	opts           *mqtt.ClientOptions
 	client         mqtt.Client
 	topics         map[string]mqtt.MessageHandler // Map of topics to their handlers
@@ -20,7 +19,7 @@ type MqttClient struct {
 	qos            byte
 }
 
-func NewMqttClient(broker string, topicHandlers map[string]mqtt.MessageHandler) *MqttClient {
+func NewMqttClient(broker string, clientID string, topicHandlers map[string]mqtt.MessageHandler) *MqttClient {
 	return &MqttClient{
 		broker: broker,
 		topics: topicHandlers,
@@ -28,27 +27,26 @@ func NewMqttClient(broker string, topicHandlers map[string]mqtt.MessageHandler) 
 	}
 }
 
-// Initializes subscribe topics and handlers (not thread-safe, call before Connect)
-func (c *MqttClient) Init() {
+func (c *MqttClient) Init() error {
 	c.opts = mqtt.NewClientOptions().AddBroker(c.broker)
-	c.opts.SetClientID(fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7())))
-	c.opts.SetKeepAlive(30 * time.Second)
+	c.opts.SetClientID(c.clientID)
 	c.opts.SetCleanSession(true)
 	c.opts.SetAutoReconnect(true)
+	c.opts.SetConnectRetryInterval(5 * time.Second)
 	c.opts.SetOnConnectHandler(c.onConnect)
 	c.opts.SetConnectionLostHandler(c.onConnectionLost)
+	c.opts.SetKeepAlive(30 * time.Second)
+	c.opts.SetWriteTimeout(5 * time.Second) // set publish timeout to 5s, normal finished in serveral ms.
+
 	for topic, handler := range c.topics {
 		c.topics[topic] = handler
 	}
 
 	if err := c.Connect(); err != nil {
-		log.Printf("first MQTT connection failed: %v", err)
+		log.Printf("First MQTT connection failed: %v", err)
+		return err
 	}
-
-	// Delay the autoReconnect go-routine to avoid repeat connection
-	time.AfterFunc(5 * time.Second, func() {
-		go c.AutoReconnect()
-	})
+	return nil
 }
 
 func (c *MqttClient) onConnect(client mqtt.Client) {
@@ -57,11 +55,10 @@ func (c *MqttClient) onConnect(client mqtt.Client) {
 }
 
 func (c *MqttClient) onConnectionLost(client mqtt.Client, err error) {
-	log.Printf("MQTT connection lost")
+	log.Printf("Detect MQTT connection lost")
 }
 
 func (c *MqttClient) Connect() error {
-	// Purge old connection first
 	c.Disconnect()
 
 	c.mu.Lock()
@@ -108,25 +105,14 @@ func (c *MqttClient) ResubscribeAllTopics() {
 	}
 }
 
-// Monitor connection and handle reconnection regularly
-func (c *MqttClient) AutoReconnect() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+func (c *MqttClient) Publish(topic string, payload []byte) error {
+    if !c.IsConnected() {
+        return fmt.Errorf("MQTT not connected")
+    }
 
-	retry_times := 0
-	for {
-		select {
-		case <-ticker.C:
-			if c.IsConnected() {
-				retry_times = 0
-				continue
-			}
-
-			log.Printf("Detect MQTT connection lost, reconnecting...")
-			retry_times++
-			if err := c.Connect(); err != nil {
-				log.Printf("Reconnect MQTT failed: %v, retry_times: %d", err, retry_times)
-			}
-		}
-	}
+    token := c.client.Publish(topic, c.qos, false, payload)
+    if token.Wait() && token.Error() != nil {
+        return token.Error()
+    }
+    return nil
 }

@@ -8,14 +8,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-
-func EdgeGatewayHandler(_ mqtt.Client, msg mqtt.Message) {
-    parts := strings.Split(msg.Topic(), "/")
-    if len(parts) != 3 || parts[0] != "cloud" || parts[2] != "notify" {
-        log.Printf("Invalid notify topic: %s", msg.Topic())
-        return
-    }
-    edgeGatewayID := parts[1]
+func EdgeGatewayCommonMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
 
 	payload := msg.Payload()
     var kafkaTopic string
@@ -24,26 +18,46 @@ func EdgeGatewayHandler(_ mqtt.Client, msg mqtt.Message) {
     }
     if err := json.Unmarshal(payload, &data); err == nil {
         switch data.Type {
-        case "model":
-            kafkaTopic = "cloud.model"
-        case "alert":
-            kafkaTopic = "cloud.alert"
+        case "ack":
+            kafkaTopic = "cloud.ack"
         default:
 			log.Printf("Unknown MQTT topic: %s, drop msg", msg.Topic())
         }
     } else {
-		log.Printf("Can't parse msg, topic: %s, drop msg", payload, msg.Topic())
+		log.Printf("parse msg error, topic: %s, drop msg", payload, msg.Topic())
 		return
     }
 
-	// TODO: add Kafka Message to Chan
+	// TODO: publish to Kafka
 	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", kafkaTopic, edgeGatewayID)
 }
 
-func EdgeGatewayTelemetryHandler(_ mqtt.Client, msg mqtt.Message) {
-	log.Printf("Receive Telemetry Response: Topic=%s", msg.Topic())
+func EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+
+	// TODO: publish to Kafka
+	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
 }
 
-func EdgeGatewayRespHandler(_ mqtt.Client, msg mqtt.Message) {
-	log.Printf("Receive edge-gateway Response: Topic=%s", msg.Topic())
+func EdgeGatewayModelMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+
+	// TODO: publish to Kafka
+	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
+}
+
+func EdgeGatewayAlertMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+
+	// TODO: publish to Kafka
+	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
+}
+
+
+func CloudMsgHandler(topic string, key []byte, value []byte) {
+	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
+}
+
+func KafkaSubscribeTestHandler(topic string, key []byte, value []byte) {
+	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
 }
