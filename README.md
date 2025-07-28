@@ -8,5 +8,10 @@ go build -o mqtt-bridge cmd/main.go
 ```
 
 TODO
-* test autoReconnection for MQTT
-* feat: send to Kafka
+* MQTT subscribe (Done)
+* MQTT autoReconnection (Done)
+* MQTT subscribe auto recover
+* MQTT publish
+
+* publish to Kafka
+* Kafka subscribe (autocommit or manualcommit)

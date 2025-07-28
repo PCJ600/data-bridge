@@ -10,33 +10,34 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-// Client represents an MQTT client with auto-reconnect capability
+// TODO: set autoconnectretry 5 seconds, no need to Reconnect ?
 type MqttClient struct {
-	opts   *mqtt.ClientOptions
-	client mqtt.Client
-	topics map[string]mqtt.MessageHandler // Map of topics to their handlers
-	mu     sync.RWMutex // Concurrent protection
-	qos    byte
+	broker         string
+	opts           *mqtt.ClientOptions
+	client         mqtt.Client
+	topics         map[string]mqtt.MessageHandler // Map of topics to their handlers
+	mu             sync.RWMutex
+	qos            byte
 }
 
-
-func New() *MqttClient {
+func NewMqttClient(broker string, topicHandlers map[string]mqtt.MessageHandler) *MqttClient {
 	return &MqttClient{
-		topics: make(map[string]mqtt.MessageHandler),
+		broker: broker,
+		topics: topicHandlers,
 		qos: 1,
 	}
 }
 
 // Initializes subscribe topics and handlers (not thread-safe, call before Connect)
-func (c *MqttClient) Init(broker string, topicHandlers map[string]mqtt.MessageHandler) {
-	c.opts = mqtt.NewClientOptions().AddBroker(broker)
+func (c *MqttClient) Init() {
+	c.opts = mqtt.NewClientOptions().AddBroker(c.broker)
 	c.opts.SetClientID(fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7())))
 	c.opts.SetKeepAlive(30 * time.Second)
 	c.opts.SetCleanSession(true)
 	c.opts.SetAutoReconnect(true)
 	c.opts.SetOnConnectHandler(c.onConnect)
 	c.opts.SetConnectionLostHandler(c.onConnectionLost)
-	for topic, handler := range topicHandlers {
+	for topic, handler := range c.topics {
 		c.topics[topic] = handler
 	}
 
