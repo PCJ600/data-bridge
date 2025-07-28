@@ -30,7 +30,6 @@ func NewKafkaClient(brokers string, groupId string, topicHandlers map[string]Mes
             "bootstrap.servers":          brokers,
             "acks":                       "all",
             "retries":                    3,
-            "enable.idempotence":         true,
         },
         cConfig: &kafka.ConfigMap{
             "bootstrap.servers":          brokers,
@@ -38,6 +37,8 @@ func NewKafkaClient(brokers string, groupId string, topicHandlers map[string]Mes
             "auto.offset.reset":          "latest",
             "enable.auto.commit":         true,
             "auto.commit.interval.ms":    1000,
+			"socket.timeout.ms":          5000,
+			"socket.connection.setup.timeout.ms":   5000,
         },
         topicHandlers:   topicHandlers,
         running:         true,
@@ -99,7 +100,7 @@ func (k *KafkaClient) connectAndConsume() error {
     // Main polling loop.
     run := true
     for run && k.isRunning() {
-        ev := k.consumer.Poll(200)
+        ev := k.consumer.Poll(500)
         if ev == nil {
             continue
         }

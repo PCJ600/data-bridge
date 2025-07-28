@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	// "time"
+	"time"
 
 	"github.com/pc/mqtt-bridge/internal/mqtt"
 	"github.com/pc/mqtt-bridge/internal/kafka"
@@ -59,6 +59,7 @@ func main() {
 		}
 		time.Sleep(3 * time.Second)
 	}
+	*/
 
 	for {
 		err := kafkac.Publish("egw.notify", "device-001", []byte(`{"msgType":"upgrade"}`))
@@ -67,7 +68,6 @@ func main() {
 		}
 		time.Sleep(3 * time.Second)
 	}
-	*/
 
 
 	sig := make(chan os.Signal, 1)
