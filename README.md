@@ -6,3 +6,7 @@ go mod tidy
 go build -o mqtt-bridge cmd/main.go
 ./mqtt-bridge
 ```
+
+TODO
+* test autoReconnection for MQTT
+* feat: send to Kafka
