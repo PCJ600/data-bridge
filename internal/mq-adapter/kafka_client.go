@@ -178,6 +178,8 @@ func (k *MQClient) Publish(topic string, key []byte, payload []byte) error {
 
 // Register subscription, execute all registered subscriptions after connecting to Broker.
 func (k *MQClient) RegisterSubscription(topic string, handler MessageHandler) {
+    k.mu.RLock()
+    defer k.mu.RUnlock()
 	k.subscriptions[topic] = handler
 }
 

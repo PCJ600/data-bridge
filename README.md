@@ -7,11 +7,16 @@ go build -o mqtt-bridge cmd/main.go
 ./mqtt-bridge
 ```
 
-TODO
-* MQTT subscribe (Done)
-* MQTT autoReconnection (Done)
-* MQTT subscribe auto recover
-* MQTT publish
+Done
+* MQTT pub/sub
+* MQTT autoReconnect
 
-* publish to Kafka
-* Kafka subscribe (autocommit or manualcommit)
+* Kafka pub/sub
+* Kafka autoReconnect
+* Kafka subscriptions auto recover
+
+TODO
+* cpu/memory check
+* print Kakfa Subscribe Logs
+* test message not dropped
+* MQTT subscriptions auto recover (?)

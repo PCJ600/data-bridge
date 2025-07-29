@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,19 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
-/*
-topic_handlers := map[string]mqclient.MessageHandler{
-	"test.topic": handler.MQSubscribeTestHandler,
-}
-
-topic_handlers := map[string]mqtt.MessageHandler{
-		"$share/mqtt_bridge/cloud/+/notify": handler.EdgeGatewayCommonMsgHandler,
-		"$share/mqtt_bridge/cloud/+/model": handler.EdgeGatewayModelMsgHandler,
-		"$share/mqtt_bridge/cloud/+/alert": handler.EdgeGatewayAlertMsgHandler,
-	}
-*/
 func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
-	// 1. Create MQTT and MQ client instance.
+	// Create MQTT and MQ client instance.
 	mqttBroker := "tcp://emqx:1883"
 	mqttClientID := fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7()))
 	mqttClient := mqttclient.New(mqttBroker, mqttClientID)
@@ -36,34 +26,54 @@ func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
 	mqConsumerGroup := "mqtt-bridge"
 	mqClient := mqclient.New(mqBroker, mqConsumerGroup)
 
-	// 2. Register subscriptions handlers for MQTT and MQ.
+	// Register subscriptions for MQTT and MQ.
 	h := handler.New(mqttClient, mqClient)
+	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/notify", h.EdgeGatewayMsgHandler)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/telemetry", h.EdgeGatewayTelemetryMsgHandler)
+	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/model", h.EdgeGatewayModelMsgHandler)
+	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/alert", h.EdgeGatewayAlertMsgHandler)
 	mqClient.RegisterSubscription("egw.notify", h.CloudMsgHandler)
 
-	// 3. All dependencies ready, start MQTT and MQ client.
+	// All dependencies ready, start MQTT and MQ client.
 	mqttClient.Start()
 	mqClient.Start()
 	return mqttClient, mqClient
 }
 
+
+// Simulator MQTT Publisher
 func MqttTest(c *mqttclient.MqttClient) {
-	for {
-		err := c.Publish("cloud/1/telemetry", []byte(`{"temp": "25.5"}`))
-		if err != nil {
-			log.Printf("MQTT Publish error: %v", err)
-		}
-		time.Sleep(3 * time.Second)
-	}
+    msgID := 0
+    for {
+        for deviceID := 1; deviceID <= 2; deviceID++ {
+            topics := []string{"telemetry", "model", "alert", "notify"}
+            for _, topic := range topics {
+                fullTopic := fmt.Sprintf("cloud/%d/%s", deviceID, topic)
+                payload := fmt.Sprintf(`{"msgType": "%s", "msgID": %d}`, topic, msgID)
+
+                if err := c.Publish(fullTopic, []byte(payload)); err != nil {
+                    log.Printf("Publish to MQ failed, msgType: %s, msgID: %d, err: %v", topic, msgID, err)
+                }
+                msgID++
+            }
+        }
+        time.Sleep(5 * time.Second)
+    }
 }
 
+// Simulator Kafka Publisher
 func MQTest(c *mqclient.MQClient) {
+    msgID := 0
 	for {
-		err := c.Publish("egw.notify", []byte("1"), []byte(`{"msgType":"upgrade"}`))
-		if err != nil {
-			log.Printf("Publish error: %v", err)
+        for deviceID := 1; deviceID <= 2; deviceID++ {
+            payload := fmt.Sprintf(`{"msgType": "notify", "msgID": %d}`, msgID)
+			err := c.Publish("egw.notify", []byte(strconv.Itoa(deviceID)), []byte(payload))
+			if err != nil {
+				log.Printf("Publish to MQTT failed, topic: %s, msgID: %d, err: %v", "egw.notify", msgID, err)
+			}
+			msgID++
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 }
 

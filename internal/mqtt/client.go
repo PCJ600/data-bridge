@@ -94,6 +94,8 @@ func (c *MqttClient) IsConnected() bool {
 }
 
 func (c *MqttClient) RegisterSubscription(topic string, handler mqtt.MessageHandler) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.subscriptions[topic] = handler
 }
 

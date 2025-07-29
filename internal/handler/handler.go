@@ -15,7 +15,7 @@ import (
 type mqJob struct {
     topic   string
     payload []byte
-    key     string
+    key     []byte
 }
 
 type mqttJob struct {
@@ -60,9 +60,9 @@ func (h *Handler) startMqPublishWorker() {
 			}
             err := h.mqPublisher.Publish(job.topic, []byte(job.key), job.payload)
             if err != nil {
-                 log.Printf("Failed to publish to MQ: %v, topic=%s, key=%s", err, job.topic, job.key)
+                 log.Printf("Failed to publish to MQ: %v, topic=%s, key=%q", err, job.topic, job.key)
             } else {
-                 log.Printf("Send Msg to MQ, topic=%s, key=%s, payload=%s", job.topic, job.key, job.payload)
+                 log.Printf("Send Msg to MQ, topic=%s, key=%q, payload=%q", job.topic, job.key, job.payload)
 			}
         }
     }()
@@ -81,7 +81,7 @@ func (h *Handler) startMqttPublishWorker() {
             if err != nil {
                 log.Printf("Failed to publish to MQTT: %v, topic=%s", err, job.topic)
             } else {
-                log.Printf("Send Msg to MQTT, topic=%s, payload=%s", job.topic, job.payload)
+                log.Printf("Send Msg to MQTT, topic=%s, payload=%q", job.topic, job.payload)
 			}
         }
     }()
@@ -94,19 +94,51 @@ func (h *Handler) Close() {
 	h.wg.Wait()
 }
 
-// Handles telemetry data from edge gateway (received via MQTT), and forwards to MQ for further processing.
+// Handles telemetry data from edge (received via MQTT), and forwards to MQ for further processing.
 func (h *Handler) EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message) {
     if h.mqPublisher == nil {
-        log.Printf("MQ publisher not set")
+        log.Fatalf("MQ publisher not set")
         return
     }
 
     edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+	if edgeGatewayID == "" {
+        log.Printf("edgeGatewayID not found")
+        return
+	}
+
 	raw_data := msg.Payload() // TODO: deserialize raw telemetry data here ^_^
     job := mqJob{
         topic:      "cloud.telemetry",
-        key:        edgeGatewayID,
+        key:        []byte(edgeGatewayID),
         payload:    raw_data,
+    }
+
+    select {
+    case h.mqJobQueue <- job:
+		{}
+    default:
+        log.Printf("MQ job queue is full, dropping telemetry msg for topic: %s", msg.Topic())
+    }
+}
+
+// Handles simple data from edge (received via MQTT), and forwards to MQ for further processing.
+func (h *Handler) MqttSimpleMsgHandler(msg mqtt.Message, dstTopic string) {
+    if h.mqPublisher == nil {
+        log.Fatalf("MQ publisher not set")
+        return
+    }
+
+    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+	if edgeGatewayID == "" {
+        log.Printf("edgeGatewayID not found")
+        return
+	}
+
+    job := mqJob{
+        topic:      dstTopic,
+        key:        []byte(edgeGatewayID),
+        payload:    msg.Payload(),
     }
 
     select {
@@ -117,14 +149,34 @@ func (h *Handler) EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message
     }
 }
 
-// Handles downstream message from MQ, and forwards to MQTT for edge gateway process.
+// Handles device model data from edge (received via MQTT), and forwards to MQ
+func (h *Handler) EdgeGatewayModelMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+	h.MqttSimpleMsgHandler(msg, "cloud.model")
+}
+
+// Handles alert msg from edge (received via MQTT), and forwards to MQ
+func (h *Handler) EdgeGatewayAlertMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+	h.MqttSimpleMsgHandler(msg, "cloud.alert")
+}
+
+// Handles any other common msg from edge (received via MQTT), and forwards to MQ
+func (h *Handler) EdgeGatewayMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+	h.MqttSimpleMsgHandler(msg, "cloud.notify")
+}
+
+
+// Handles downstream message from cloud (received via MQ), and forwards to MQTT
 func (h *Handler) CloudMsgHandler(topic string, key []byte, value []byte) {
     if h.mqttPublisher == nil {
-        log.Printf("MQTT publisher not set")
+        log.Fatalf("MQTT publisher not set")
         return
     }
-
-	mqttTopic := fmt.Sprintf("egw/%s/notify", string(key))
+	if (key == nil) || string(key) == "" {
+        log.Printf("edgeGatewayID not found")
+		return
+	}
+	edgeGatewayID := string(key)
+	mqttTopic := fmt.Sprintf("egw/%s/notify", edgeGatewayID)
     job := mqttJob{
         topic:   mqttTopic,
         payload: value,
