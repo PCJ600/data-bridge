@@ -35,8 +35,8 @@ func New(broker string, clientID string) *MqttClient {
 	}
 }
 
-// Init initializes the MQTT client and connection.
-func (c *MqttClient) Start() {
+// Initializes the MQTT client and connection.
+func (c *MqttClient) Start() error {
 	c.opts = mqtt.NewClientOptions().AddBroker(c.broker)
 	c.opts.SetClientID(c.clientID)
 	c.opts.SetCleanSession(true)
@@ -48,8 +48,9 @@ func (c *MqttClient) Start() {
 	c.opts.SetWriteTimeout(5 * time.Second)
 
 	if err := c.Connect(); err != nil {
-		log.Printf("First MQTT connection failed: %v", err)
+		return err
 	}
+	return nil
 }
 
 func (c *MqttClient) onConnect(client mqtt.Client) {
@@ -92,12 +93,11 @@ func (c *MqttClient) IsConnected() bool {
 	return c.client.IsConnectionOpen()
 }
 
-// Register subscription, execute all registered subscriptions after connecting to Broker.
 func (c *MqttClient) RegisterSubscription(topic string, handler mqtt.MessageHandler) {
 	c.subscriptions[topic] = handler
 }
 
-// TODO: handle subscribe error (or liveness probe)
+// TODO: handle subscribe error
 func (c *MqttClient) ResubscribeAllTopics() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -61,6 +61,7 @@ func (k *MQClient) Start() error {
 
     // Start the auto-reconnecting consume loop.
     go k.startConsumeLoop()
+	log.Printf("Create Kafka connection done")
     return nil
 }
 
