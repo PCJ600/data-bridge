@@ -9,25 +9,34 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+type Publisher interface {
+    Publish(topic string, payload []byte) error
+}
+
 type MqttClient struct {
 	broker         string
 	clientID       string
 	opts           *mqtt.ClientOptions
 	client         mqtt.Client
-	topics         map[string]mqtt.MessageHandler // Map of topics to their handlers
+	subscriptions  map[string]mqtt.MessageHandler
 	mu             sync.RWMutex
 	qos            byte
+	retained       bool
 }
 
-func NewMqttClient(broker string, clientID string, topicHandlers map[string]mqtt.MessageHandler) *MqttClient {
+// Creates a new MQTT client.
+func New(broker string, clientID string) *MqttClient {
 	return &MqttClient{
 		broker: broker,
-		topics: topicHandlers,
+		clientID: clientID,
+		subscriptions: make(map[string]mqtt.MessageHandler),
 		qos: 1,
+		retained: false,
 	}
 }
 
-func (c *MqttClient) Init() error {
+// Init initializes the MQTT client and connection.
+func (c *MqttClient) Start() {
 	c.opts = mqtt.NewClientOptions().AddBroker(c.broker)
 	c.opts.SetClientID(c.clientID)
 	c.opts.SetCleanSession(true)
@@ -36,17 +45,11 @@ func (c *MqttClient) Init() error {
 	c.opts.SetOnConnectHandler(c.onConnect)
 	c.opts.SetConnectionLostHandler(c.onConnectionLost)
 	c.opts.SetKeepAlive(30 * time.Second)
-	c.opts.SetWriteTimeout(5 * time.Second) // set publish timeout to 5s, normal finished in serveral ms.
-
-	for topic, handler := range c.topics {
-		c.topics[topic] = handler
-	}
+	c.opts.SetWriteTimeout(5 * time.Second)
 
 	if err := c.Connect(); err != nil {
 		log.Printf("First MQTT connection failed: %v", err)
-		return err
 	}
-	return nil
 }
 
 func (c *MqttClient) onConnect(client mqtt.Client) {
@@ -89,13 +92,17 @@ func (c *MqttClient) IsConnected() bool {
 	return c.client.IsConnectionOpen()
 }
 
+// Register subscription, execute all registered subscriptions after connecting to Broker.
+func (c *MqttClient) RegisterSubscription(topic string, handler mqtt.MessageHandler) {
+	c.subscriptions[topic] = handler
+}
 
-// TODO: handle subscribe error
+// TODO: handle subscribe error (or liveness probe)
 func (c *MqttClient) ResubscribeAllTopics() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for topic, handler := range c.topics {
+	for topic, handler := range c.subscriptions {
 		token := c.client.Subscribe(topic, c.qos, handler)
 		if token.Wait() && token.Error() != nil {
 			log.Printf("Subscribe MQTT topic %s failed: %v", topic, token.Error())
@@ -110,9 +117,10 @@ func (c *MqttClient) Publish(topic string, payload []byte) error {
         return fmt.Errorf("MQTT not connected")
     }
 
-    token := c.client.Publish(topic, c.qos, false, payload)
+    token := c.client.Publish(topic, c.qos, c.retained, payload)
     if token.Wait() && token.Error() != nil {
         return token.Error()
     }
     return nil
 }
+

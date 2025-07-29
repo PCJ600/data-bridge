@@ -1,63 +1,59 @@
 package handler
 
 import (
-	"log"
-	"encoding/json"
-	"strings"
+    "fmt"
+    "log"
+    "strings"
+
+	"github.com/pc/mqtt-bridge/internal/mqtt"
+	"github.com/pc/mqtt-bridge/internal/mq-adapter"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-func EdgeGatewayCommonMsgHandler(_ mqtt.Client, msg mqtt.Message) {
-    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+// Handler handles bidirectional message bridging between MQTT and MQ.
+type Handler struct {
+    mqttPublisher mqttclient.Publisher
+    mqPublisher   mqclient.Publisher
+}
 
-	payload := msg.Payload()
-    var MQTopic string
-    var data struct {
-        Type string `json:"msgType"`
+// NewHandler creates a new Handler with the required publishers.
+func New(mqttPublisher mqttclient.Publisher, mqPublisher mqclient.Publisher) *Handler {
+    return &Handler{
+        mqttPublisher: mqttPublisher,
+        mqPublisher:   mqPublisher,
     }
-    if err := json.Unmarshal(payload, &data); err == nil {
-        switch data.Type {
-        case "ack":
-            MQTopic = "cloud.ack"
-        default:
-			log.Printf("Unknown MQTT topic: %s, drop msg", msg.Topic())
-        }
-    } else {
-		log.Printf("parse msg error, topic: %s, drop msg", payload, msg.Topic())
-		return
+}
+
+// Handles telemetry data from edge gateway (received via MQTT), and forwards to MQ for further processing.
+func (h *Handler) EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message) {
+    if h.mqPublisher == nil {
+        log.Printf("MQ publisher not set")
+        return
     }
 
-	// TODO: publish to Kafka
-	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", MQTopic, edgeGatewayID)
-}
-
-func EdgeGatewayTelemetryMsgHandler(_ mqtt.Client, msg mqtt.Message) {
     edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
-
-	// TODO: publish to Kafka
-	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
+	// TODO: async publish
+    err := h.mqPublisher.Publish("cloud.telemetry", []byte(edgeGatewayID), msg.Payload())
+    if err != nil {
+        log.Printf("Failed to send telemetry msg to MQ: %v", err)
+        return
+    }
+    log.Printf("Sent telemetry msg to MQ: topic=%s", msg.Topic())
 }
 
-func EdgeGatewayModelMsgHandler(_ mqtt.Client, msg mqtt.Message) {
-    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
+// Handles downstream message from MQ, and forwards to MQTT for edge gateway process.
+func (h *Handler) CloudMsgHandler(topic string, key, value []byte) {
+    if h.mqttPublisher == nil {
+        log.Printf("MQTT publisher not set")
+        return
+    }
 
-	// TODO: publish to Kafka
-	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
-}
-
-func EdgeGatewayAlertMsgHandler(_ mqtt.Client, msg mqtt.Message) {
-    edgeGatewayID := strings.Split(msg.Topic(), "/")[1]
-
-	// TODO: publish to Kafka
-	log.Printf("Send msg to Kafka: Topic=%s, Key: %s", msg.Topic(), edgeGatewayID)
-}
-
-
-func CloudMsgHandler(topic string, key []byte, value []byte) {
-	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
-}
-
-func MQSubscribeTestHandler(topic string, key []byte, value []byte) {
-	log.Printf("Receive msg from Kafka: Topic=%s, Key: %s", topic, key)
+	mqttTopic := fmt.Sprintf("egw/%s/notify", string(key))
+    err := h.mqttPublisher.Publish(mqttTopic, value)
+    if err != nil {
+        log.Printf("Failed to send msg to MQTT: %v", err)
+        return
+    }
+    log.Printf("Sent msg to MQTT: topic=%s", topic)
 }

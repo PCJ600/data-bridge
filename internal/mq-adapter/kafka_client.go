@@ -8,23 +8,28 @@ import (
     "github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
+
+type Publisher interface {
+	Publish(topic string, key []byte, payload []byte) error
+}
+
 // MessageHandler defines the function signature for handling consumed messages.
-type MessageHandler func(topic string, key, value []byte)
+type MessageHandler func(topic string, key []byte, payload []byte)
 
 // MQClient encapsulates a Confluent Kafka client.
 type MQClient struct {
-    pConfig         *kafka.ConfigMap
-    cConfig         *kafka.ConfigMap
-    producer        *kafka.Producer
-    consumer        *kafka.Consumer
-    topicHandlers   map[string]MessageHandler // Topic to handler mapping
-    running         bool                      // Flag to control running state
-    mu              sync.RWMutex              // Protects consumer and producer pointers
-    reconnectInterval time.Duration           // Interval for reconnecting
+    pConfig              *kafka.ConfigMap
+    cConfig              *kafka.ConfigMap
+    producer             *kafka.Producer
+    consumer             *kafka.Consumer
+    subscriptions        map[string]MessageHandler // Topic to handler mapping
+    running              bool                      // Flag to control running state
+    mu                   sync.RWMutex              // Protects consumer and producer pointers
+    reconnectInterval    time.Duration             // Interval for reconnecting
 }
 
 // Creates a new KafkaClient instance.
-func NewMQClient(brokers string, groupId string, topicHandlers map[string]MessageHandler) *MQClient {
+func New(brokers string, groupId string) *MQClient {
     return &MQClient{
         pConfig: &kafka.ConfigMap{
             "bootstrap.servers":          brokers,
@@ -40,14 +45,14 @@ func NewMQClient(brokers string, groupId string, topicHandlers map[string]Messag
 			"socket.timeout.ms":          5000,
 			"socket.connection.setup.timeout.ms":   5000,
         },
-        topicHandlers:   topicHandlers,
-        running:         true,
+		subscriptions:     make(map[string]MessageHandler),
+        running:           true,
         reconnectInterval: 5 * time.Second,
     }
 }
 
 // Init initializes the producer and starts the consume loop.
-func (k *MQClient) Init() error {
+func (k *MQClient) Start() error {
     producer, err := kafka.NewProducer(k.pConfig)
     if err != nil {
         return err
@@ -85,8 +90,8 @@ func (k *MQClient) connectAndConsume() error {
     k.mu.Unlock()
 
     // Extract topic list from the handler map.
-    topics := make([]string, 0, len(k.topicHandlers))
-    for topic := range k.topicHandlers {
+    topics := make([]string, 0, len(k.subscriptions))
+    for topic := range k.subscriptions {
         topics = append(topics, topic)
     }
 
@@ -108,7 +113,7 @@ func (k *MQClient) connectAndConsume() error {
         switch e := ev.(type) {
         case *kafka.Message:
             // Dispatch message to its registered handler.
-            if handler, exists := k.topicHandlers[*e.TopicPartition.Topic]; exists && handler != nil {
+            if handler, exists := k.subscriptions[*e.TopicPartition.Topic]; exists && handler != nil {
                 handler(*e.TopicPartition.Topic, e.Key, e.Value)
             } else {
                 log.Printf("[Consumed] No handler for topic '%s': Key=%s, Value=%s", 
@@ -135,7 +140,7 @@ func (k *MQClient) connectAndConsume() error {
 }
 
 // Publish sends a message synchronously.
-func (k *MQClient) Publish(topic string, key string, value []byte) error {
+func (k *MQClient) Publish(topic string, key []byte, payload []byte) error {
     k.mu.RLock()
     producer := k.producer
     k.mu.RUnlock()
@@ -150,8 +155,8 @@ func (k *MQClient) Publish(topic string, key string, value []byte) error {
             Topic:     &topic,
             Partition: kafka.PartitionAny,
         },
-        Key:   []byte(key),
-        Value: value,
+        Key:   key,
+        Value: payload,
     }, deliveryChan)
 
     if err != nil {
@@ -168,6 +173,11 @@ func (k *MQClient) Publish(topic string, key string, value []byte) error {
         return m.TopicPartition.Error
     }
     return nil
+}
+
+// Register subscription, execute all registered subscriptions after connecting to Broker.
+func (k *MQClient) RegisterSubscription(topic string, handler MessageHandler) {
+	k.subscriptions[topic] = handler
 }
 
 // Close shuts down the producer and consumer gracefully.
