@@ -1,6 +1,6 @@
-BINARY_NAME := mqtt-bridge
-IMAGE_NAME := mqtt-bridge
-IMAGE_TAG := 1.0.0.10002
+BINARY_NAME := cloud-agent
+IMAGE_NAME := cloud-agent
+IMAGE_TAG := 1.0.0.10003
 GO_BUILD_FLAGS := -ldflags="-s -w"
 
 PROXY_ADDR ?= 
@@ -15,11 +15,11 @@ endif
 all: build
 
 build:
-	go build $(GO_BUILD_FLAGS) -o ./$(BINARY_NAME) ./cmd/main.go
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build $(GO_BUILD_FLAGS) -o ./$(BINARY_NAME) ./cmd/main.go
 	@echo "Binary built: ./$(BINARY_NAME)"
 
 clean:
-	rm -rf ./bin/$(BINARY_NAME)
+	rm -rf ./$(BINARY_NAME)
 	@echo "Cleaned build artifacts"
 
 dist:

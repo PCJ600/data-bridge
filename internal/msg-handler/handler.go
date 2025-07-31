@@ -6,8 +6,8 @@ import (
     "strings"
 	"sync"
 
-	"github.com/pc/mqtt-bridge/internal/mqtt"
-	"github.com/pc/mqtt-bridge/internal/mq-adapter"
+	"github.com/shr/cloud-agent/internal/mqtt"
+	"github.com/shr/cloud-agent/internal/mq-adapter"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
@@ -38,8 +38,8 @@ func New(mqttPublisher mqttclient.Publisher, mqPublisher mqclient.Publisher) *Ha
     handler := &Handler{
         mqttPublisher:    mqttPublisher,
         mqPublisher:      mqPublisher,
-		mqttJobQueue:     make(chan mqttJob, 100000),
-		mqJobQueue:       make(chan mqJob, 100000),
+		mqttJobQueue:     make(chan mqttJob, 10000),
+		mqJobQueue:       make(chan mqJob, 10000),
 		running:          true,
     }
 

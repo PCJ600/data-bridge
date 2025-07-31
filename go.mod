@@ -1,4 +1,4 @@
-module github.com/pc/mqtt-bridge
+module github.com/shr/cloud-agent
 
 go 1.22.3
 

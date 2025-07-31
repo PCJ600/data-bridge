@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/pc/mqtt-bridge/internal/mqtt"
-	"github.com/pc/mqtt-bridge/internal/mq-adapter"
-	"github.com/pc/mqtt-bridge/internal/msg-handler"
-	"github.com/pc/mqtt-bridge/internal/handler"
+	"github.com/shr/cloud-agent/internal/mqtt"
+	"github.com/shr/cloud-agent/internal/mq-adapter"
+	"github.com/shr/cloud-agent/internal/msg-handler"
+	"github.com/shr/cloud-agent/internal/handler"
 	"github.com/google/uuid"
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +23,7 @@ func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
     }
     mqttClientID := os.Getenv("MQTT_CLIENT_ID")
     if mqttClientID == "" {
-        mqttClientID = fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7()))
+        mqttClientID = fmt.Sprintf("cloud-agent-%s", uuid.Must(uuid.NewV7()))
     }
     mqBroker := os.Getenv("MQ_BROKER")
     if mqBroker == "" {
@@ -31,7 +31,7 @@ func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
     }
     mqConsumerGroup := os.Getenv("MQ_CONSUMER_GROUP")
     if mqConsumerGroup == "" {
-        mqConsumerGroup = "mqtt-bridge"
+        mqConsumerGroup = "cloud-agent"
     }
 	log.Printf("mqtt-broker: %s, mqtt-client: %s", mqttBroker, mqttClientID)
 	log.Printf("mq-broker: %s, mq-consumer-group: %s", mqBroker, mqConsumerGroup)

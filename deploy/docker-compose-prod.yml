@@ -1,11 +1,10 @@
 services:
-  mqtt-bridge:
-    image: mqtt-bridge:1.0.0.10002
+  cloud-agent:
+    image: cloud-agent:1.0.0.10002
     environment:
       MQTT_BROKER: "tcp://emqx:1883"
-      MQTT_CLIENT_ID: "mqtt-bridge-1"
       MQ_BROKER: "kafka-node2.cluster.local:9092"
-      MQ_CONSUMER_GROUP: "mqtt-bridge"
+      MQ_CONSUMER_GROUP: "cloud-agent"
       GIN_MODE: "release"
       DEMO_TEST: "true"
     restart: unless-stopped

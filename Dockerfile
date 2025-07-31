@@ -14,12 +14,12 @@ RUN go mod download
 COPY . .
 
 # confluent-kafka-go recommends musl tags for alpine linux builds
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags musl -ldflags="-s -w" -o /app/mqtt-bridge ./cmd/main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags musl -ldflags="-s -w" -o /app/cloud-agent ./cmd/main.go
 
 FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/alpine:3.22.0
 
-COPY --from=builder /app/mqtt-bridge /usr/local/bin/
+COPY --from=builder /app/cloud-agent /usr/local/bin/
 
 EXPOSE 8080
 
-CMD ["mqtt-bridge"]
+CMD ["cloud-agent"]
