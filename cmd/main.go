@@ -3,17 +3,15 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/pc/mqtt-bridge/internal/mqtt"
 	"github.com/pc/mqtt-bridge/internal/mq-adapter"
+	"github.com/pc/mqtt-bridge/internal/msg-handler"
 	"github.com/pc/mqtt-bridge/internal/handler"
-
 	"github.com/google/uuid"
+	"github.com/gin-gonic/gin"
 )
 
 func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
@@ -27,7 +25,7 @@ func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
 	mqClient := mqclient.New(mqBroker, mqConsumerGroup)
 
 	// Register subscriptions for MQTT and MQ.
-	h := handler.New(mqttClient, mqClient)
+	h := msghandler.New(mqttClient, mqClient)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/notify", h.EdgeGatewayMsgHandler)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/telemetry", h.EdgeGatewayTelemetryMsgHandler)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/model", h.EdgeGatewayModelMsgHandler)
@@ -77,13 +75,26 @@ func MQTest(c *mqclient.MQClient) {
 	}
 }
 
+
+
 func main() {
 	mqttClient, mqClient := InitMQClient()
 
 	go MqttTest(mqttClient)
 	go MQTest(mqClient)
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	<-sig
+	// Start Gin
+	gin.SetMode(gin.ReleaseMode)
+
+	r := gin.New()
+
+	r.Use(
+		gin.Recovery(),
+	)
+
+	r.GET("/healthz", handler.HealthCheck)
+
+	if err := r.Run(":8080"); err != nil {
+		panic(err)
+	}
 }
