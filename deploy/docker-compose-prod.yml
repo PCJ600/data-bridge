@@ -1,0 +1,21 @@
+services:
+  mqtt-bridge:
+    image: mqtt-bridge:1.0.0.10002
+    environment:
+      MQTT_BROKER: "tcp://emqx:1883"
+      MQTT_CLIENT_ID: "mqtt-bridge-1"
+      MQ_BROKER: "kafka-node2.cluster.local:9092"
+      MQ_CONSUMER_GROUP: "mqtt-bridge"
+      GIN_MODE: "release"
+      DEMO_TEST: "true"
+    restart: unless-stopped
+    sysctls:
+      net.ipv4.ip_local_port_range: "1024 65535"
+    ulimits:
+      nproc: 65536
+      nofile:
+        soft: 65536
+        hard: 65536
+    extra_hosts:
+      - "emqx:10.17.14.162"
+      - "kafka-node2.cluster.local:10.17.14.163"

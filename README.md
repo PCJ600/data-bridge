@@ -5,15 +5,10 @@ to achieve highly reliable transmission
 
 # How to build
 ```
-go mod init github.com/pc/mqtt-bridge
-go mod tidy
-go build -o mqtt-bridge cmd/main.go
-./mqtt-bridge
-```
-
-# Run in docker
-```
-
+make
+make clean
+make dist      # build docker image
+make dist PROXY_ADDR="http://{ip}:{port}"
 ```
 
 # Done

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"time"
 
@@ -15,16 +16,30 @@ import (
 )
 
 func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
-	// Create MQTT and MQ client instance.
-	mqttBroker := "tcp://emqx:1883"
-	mqttClientID := fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7()))
-	mqttClient := mqttclient.New(mqttBroker, mqttClientID)
+	// 1. Create MQTT and MQ client instance.
+    mqttBroker := os.Getenv("MQTT_BROKER")
+    if mqttBroker == "" {
+        mqttBroker = "tcp://emqx:1883"
+    }
+    mqttClientID := os.Getenv("MQTT_CLIENT_ID")
+    if mqttClientID == "" {
+        mqttClientID = fmt.Sprintf("mqtt-bridge-%s", uuid.Must(uuid.NewV7()))
+    }
+    mqBroker := os.Getenv("MQ_BROKER")
+    if mqBroker == "" {
+        mqBroker = "kafka:9092"
+    }
+    mqConsumerGroup := os.Getenv("MQ_CONSUMER_GROUP")
+    if mqConsumerGroup == "" {
+        mqConsumerGroup = "mqtt-bridge"
+    }
+	log.Printf("mqtt-broker: %s, mqtt-client: %s", mqttBroker, mqttClientID)
+	log.Printf("mq-broker: %s, mq-consumer-group: %s", mqBroker, mqConsumerGroup)
 
-	mqBroker := "kafka:9092"
-	mqConsumerGroup := "mqtt-bridge"
+	mqttClient := mqttclient.New(mqttBroker, mqttClientID)
 	mqClient := mqclient.New(mqBroker, mqConsumerGroup)
 
-	// Register subscriptions for MQTT and MQ.
+	// 2. Register subscriptions for MQTT and MQ.
 	h := msghandler.New(mqttClient, mqClient)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/notify", h.EdgeGatewayMsgHandler)
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/telemetry", h.EdgeGatewayTelemetryMsgHandler)
@@ -32,7 +47,7 @@ func InitMQClient() (*mqttclient.MqttClient, *mqclient.MQClient){
 	mqttClient.RegisterSubscription("$share/mqtt_bridge/cloud/+/alert", h.EdgeGatewayAlertMsgHandler)
 	mqClient.RegisterSubscription("egw.notify", h.CloudMsgHandler)
 
-	// All dependencies ready, start MQTT and MQ client.
+	// 3. All dependencies ready, start MQTT and MQ client.
 	mqttClient.Start()
 	mqClient.Start()
 	return mqttClient, mqClient
@@ -80,11 +95,17 @@ func MQTest(c *mqclient.MQClient) {
 func main() {
 	mqttClient, mqClient := InitMQClient()
 
-	go MqttTest(mqttClient)
-	go MQTest(mqClient)
+    demoTest := os.Getenv("DEMO_TEST")
+	if demoTest == "true" {
+		go MqttTest(mqttClient)
+		go MQTest(mqClient)
+	}
 
 	// Start Gin
-	gin.SetMode(gin.ReleaseMode)
+    ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	r := gin.New()
 
